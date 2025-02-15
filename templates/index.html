@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whirlpool Voice Assistant</title>
+    <style>
+        /* Basic Reset */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        /* Container */
+        .container {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        /* Header Logo */
+        .logo {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+
+        /* Voice Icon */
+        .voice-icon {
+            width: 100px;
+            height: 100px;
+            margin: 20px auto;
+            background: url('../static/images/voice_logo.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* Listening Animation for Voice Icon */
+        .listening {
+            animation: pulse 2s infinite;
+        }
+
+        /* Pulse Animation */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            }
+
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+            }
+
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+            }
+        }
+
+        /* Stop Button */
+        .stop-button {
+            display: none;
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .stop-button.show {
+            display: block;
+        }
+
+        /* Chat Section */
+        .chat-container {
+            margin-top: 20px;
+            text-align: left;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background: #f4f4f4;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        /* Chat Messages */
+        .chat-container .message {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        .chat-container .message .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-size: cover;
+            margin-right: 10px;
+        }
+
+        .chat-container .message .text {
+            background: #e8e8e8;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        /* User Message on the Right */
+        .chat-container .message.user {
+            justify-content: flex-end;
+        }
+
+        .chat-container .message.user .avatar {
+            background-image: url('../static/images/user_logo1.png');
+        }
+
+        .chat-container .message.user .text {
+            background: #d4edda;
+            align-self: flex-start;
+        }
+
+        /* Bot Message on the Left */
+        .chat-container .message.bot .avatar {
+            background-image: url('../static/images/bot_logo.png');
+        }
+
+        .chat-container .message.bot .text {
+            background: #f8d7da;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Whirlpool Logo -->
+        <header>
+            <img src="static/images/whirlpool_logo.png" alt="Whirlpool Logo" class="logo">
+        </header>
+
+        <!-- Main Section -->
+        <main>
+            <h1>Whirlpool AI Voice Assistant</h1>
+            <p>Click the button below and speak. Your chat will appear below.</p>
+
+            <!-- Voice Icon with Animation -->
+            <div class="voice-icon" id="voice-icon"></div>
+
+            <!-- Stop Button -->
+            <button class="stop-button" id="stop-button">Stop</button>
+
+            <!-- Chat Section -->
+            <div class="chat-container" id="chat-container">
+                <!-- Chat messages will be appended here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Selectors
+        const voiceIcon = document.getElementById('voice-icon');
+        const stopButton = document.getElementById('stop-button');
+        const chatContainer = document.getElementById('chat-container');
+
+        let recognition;
+
+        // Start Speech Recognition
+        function startSpeechRecognition() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'en-US';
+
+            recognition.start();
+
+            recognition.onstart = () => {
+            console.log('Voice recognition started.');
+            voiceIcon.classList.add('listening');  // Add listening animation
+            stopButton.classList.add('show');     // Show stop button
+            };
+
+            recognition.onspeechend = () => {
+            console.log('Speech input ended');
+            voiceIcon.classList.remove('listening');  // Remove animation when speech ends
+            stopButton.classList.remove('show');     // Hide stop button
+            };
+
+            recognition.onend = () => {
+            console.log('Recognition service ended');
+            voiceIcon.classList.remove('listening');  // Remove animation when recognition ends
+            stopButton.classList.remove('show');     // Hide stop button
+            };
+
+            recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            addChatMessage('user', transcript);
+
+            // Send the recognized text to the backend
+            fetch('/process_text', {
+            method: 'POST',
+            headers: {
+            'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text: transcript })
+            })
+            .then(response => response.json())
+            .then(data => {
+                stopSpeechRecognition(); // Call stopSpeechRecognition directly
+                addChatMessage('bot', data.bot_reply);
+
+                // Speak the bot reply
+                const speech = new SpeechSynthesisUtterance(data.bot_reply);
+                speech.lang = 'en-US';
+                speech.onend = () => {
+                    // Only start next recognition after speech ends
+                    setTimeout(() => {
+                        startSpeechRecognition();
+                    }, 1000);
+                };
+                window.speechSynthesis.speak(speech);
+                })
+            .catch(error => {
+            console.error('Error:', error);
+            });
+            };
+
+            recognition.onerror = (event) => {
+            console.error('Error occurred in recognition:', event.error);
+            voiceIcon.classList.remove('listening');  // Remove animation on error
+            stopButton.classList.remove('show');     // Hide stop button
+            };
+        }
+
+        // Stop Speech Recognition
+        function stopSpeechRecognition() {
+            if (recognition) {
+                recognition.stop();
+                voiceIcon.classList.remove('listening');  // Remove listening animation
+                stopButton.classList.remove('show');     // Hide stop button
+            }
+        }
+
+        // Function to convert markdown to HTML
+        function markdownToHtml(text) {
+            // Basic markdown conversions
+            text = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')              // Italic
+                .replace(/`(.*?)`/g, '<code>$1</code>')            // Code
+                .replace(/\n/g, '<br>')                            // Line breaks
+                .replace(/^# (.*$)/gm, '<h1>$1</h1>')             // h1
+                .replace(/^## (.*$)/gm, '<h2>$1</h2>')            // h2
+                .replace(/^### (.*$)/gm, '<h3>$1</h3>');          // h3
+            
+            return text;
+        }
+
+        // Modified addChatMessage to use markdown
+        async function addChatMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.classList.add('avatar');
+
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('text');
+
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(textDiv);
+            chatContainer.appendChild(messageDiv);
+
+            // Convert text to HTML and stream it
+            const htmlText = markdownToHtml(text);
+            for (let i = 0; i < text.length; i++) {
+                textDiv.innerHTML = markdownToHtml(text.substring(0, i + 1));
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+
+        // Event Listener for Voice Icon
+        voiceIcon.addEventListener('click', () => {
+            startSpeechRecognition();
+        });
+
+        // Event Listener for Stop Button
+        stopButton.addEventListener('click', () => {
+            stopSpeechRecognition();
+        });
+    </script>
+</body>
+
+</html>
